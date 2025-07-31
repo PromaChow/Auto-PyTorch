@@ -2,7 +2,7 @@ name: Tests
 on:
   push:
     branches:
-      - main
+      - master
 
 env:
   code-cov-args: --cov=autoPyTorch --cov-report=xml --cov-config=.coveragerc
