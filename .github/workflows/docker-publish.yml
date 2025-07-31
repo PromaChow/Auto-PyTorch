@@ -1,80 +1,124 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
 name: Publish Docker image
-
 on:
   push:
-    # Push  to `master` or `development`
     branches:
-      - master
-      - development
-      - fixes_docker
-  workflow_dispatch:
+      - main
 
 jobs:
   push_to_registries:
     name: Push Docker image to multiple registries
-    runs-on: ubuntu-latest
     permissions:
-      packages: write
       contents: read
+      packages: write
+    runs-on: ubuntu-latest
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: start-measurement
       - name: Check out the repo
         uses: actions/checkout@v2
-
-      - name: Extract branch name
-        shell: bash
+      - id: extract_branch
+        name: Extract branch name
         run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-        id: extract_branch
-
+        shell: bash
+      - id: measurement-3
+        name: Record Measurement After Extract branch name
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Extract branch name
+          task: get-measurement
       - name: Log in to Docker Hub
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      
+          username: ${{ secrets.DOCKER_USERNAME }}
       - name: Log in to the Container registry
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
         with:
+          password: ${{ secrets.GITHUB_TOKEN }}
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
+      - id: meta
+        name: Extract metadata (tags, labels) for Docker
         uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
         with:
-          images: |
-            automlorg/autopytorch
+          images: 'automlorg/autopytorch
+
             ghcr.io/${{ github.repository }}
-      
+
+            '
       - name: Build and push Docker images
         uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
         with:
           context: .
           push: true
           tags: ${{ steps.extract_branch.outputs.branch }}
-
-      - name: Docker Login
+      - env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        name: Docker Login
         run: docker login ghcr.io -u $GITHUB_ACTOR -p $GITHUB_TOKEN
-        env:
-            GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-
-      - name: Pull Docker image
+      - id: measurement-9
+        name: Record Measurement After Docker Login
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Docker Login
+          task: get-measurement
+      - env:
+          BRANCH: ${{ steps.extract_branch.outputs.branch }}
+        name: Pull Docker image
         run: docker pull ghcr.io/$GITHUB_REPOSITORY/autoPyTorch:$BRANCH
-        env:
-            BRANCH: ${{ steps.extract_branch.outputs.branch }}
-
-      - name: Run image
-        run: docker run -i -d --name unittester -v $GITHUB_WORKSPACE:/workspace -w /workspace ghcr.io/$GITHUB_REPOSITORY/autoPyTorch:$BRANCH
-        env:
-            BRANCH: ${{ steps.extract_branch.outputs.branch }}
-
+      - id: measurement-11
+        name: Record Measurement After Pull Docker image
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Pull Docker image
+          task: get-measurement
+      - env:
+          BRANCH: ${{ steps.extract_branch.outputs.branch }}
+        name: Run image
+        run: docker run -i -d --name unittester -v $GITHUB_WORKSPACE:/workspace -w
+          /workspace ghcr.io/$GITHUB_REPOSITORY/autoPyTorch:$BRANCH
+      - id: measurement-13
+        name: Record Measurement After Run image
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Run image
+          task: get-measurement
       - name: Auto-PyTorch loaded
-        run: docker exec  -i unittester python3 -c 'import autoPyTorch; print(f"Auto-PyTorch imported from {autoPyTorch.__file__}")'
-
+        run: docker exec  -i unittester python3 -c 'import autoPyTorch; print(f"Auto-PyTorch
+          imported from {autoPyTorch.__file__}")'
+      - id: measurement-15
+        name: Record Measurement After Auto-PyTorch loaded
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Auto-PyTorch loaded
+          task: get-measurement
       - name: Run unit testing
         run: docker exec  -i unittester python3 -m pytest -v test
+      - id: measurement-17
+        name: Record Measurement After Run unit testing
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Run unit testing
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json
